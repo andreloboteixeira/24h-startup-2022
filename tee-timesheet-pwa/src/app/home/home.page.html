@@ -19,7 +19,9 @@
       <ion-row>
         
         <ion-col sizeLg="4" sizeMd="12" sizeSm="12">
-          <ion-label>Pick a date</ion-label>
+          <ion-label>Pick a date 
+            <ion-chip *ngIf="selectedDate" color="primary">{{selectedDate | date}}</ion-chip>
+          </ion-label>
           <ion-datetime [(ngModel)]="selectedDate" (ionChange)="search($event)" presentation="date"></ion-datetime>
         </ion-col>
 
