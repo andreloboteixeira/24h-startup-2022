@@ -37,7 +37,7 @@
                 </ion-card-header>
             
                 <ion-card-content>
-                  <ion-button (click)="book(teeTime)">Book</ion-button>
+                  <ion-button [disabled]="teeTime.booked" (click)="book(teeTime)">{{teeTime.booked ? 'Sold' : 'Book'}}</ion-button>
                 </ion-card-content>
               </ion-card>
             </div>

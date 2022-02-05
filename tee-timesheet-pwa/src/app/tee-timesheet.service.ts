@@ -6,9 +6,13 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 export interface TeeTime {
+  id: string,
   price: number,
   date: Date,
-  timeSlot: number
+  timeSlot: number,
+  numberOfPlayers: number,
+  booked: boolean,
+  bookedBy: string
 }
 
 @Injectable({
@@ -18,7 +22,7 @@ export class TeeTimesheetService {
 
   teeTimes: Array<TeeTime>;
 
-  mockTeeTimes: Array<TeeTime> = this.createMock();
+  // mockTeeTimes: Array<TeeTime> = this.createMock();
 
   constructor(
     private afs: AngularFirestore
@@ -37,7 +41,7 @@ export class TeeTimesheetService {
   }
 
   book(teeTime: TeeTime, numberOfPlayers: number, email: string): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       console.log({teeTime, numberOfPlayers, email})
       if (!numberOfPlayers || numberOfPlayers > 10) {
         reject("Invalid number of players, no more than 10");
@@ -47,6 +51,7 @@ export class TeeTimesheetService {
         reject("Invalid email");
       }
       // TODO use angular fire
+      await this.afs.collection('tee-times').doc("aNJoCs3ZPvGwatw07Gzh").update({booked: true, numberOfPlayers, bookedBy: email});
       // TODO update flag in teeTime "booked"
       // TODO update and the number of people 
       // TODO send a confirmation email
@@ -58,9 +63,13 @@ export class TeeTimesheetService {
   
     const dateConverted = teeTimes.map((tt: any) => {
       return { 
+        id: tt.id,
         date: tt.date.toDate(),
         price: tt.price/100,
-        timeSlot: tt.timeSlot
+        timeSlot: tt.timeSlot,
+        numberOfPlayers: tt.numberOfPlayers,
+        booked: tt.booked,
+        bookedBy: tt.bookedBy
       }
     }) as Array<TeeTime>;
 
