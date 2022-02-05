@@ -51,9 +51,7 @@ export class TeeTimesheetService {
         reject("Invalid email");
       }
       // TODO use angular fire
-      await this.afs.collection('tee-times').doc("aNJoCs3ZPvGwatw07Gzh").update({booked: true, numberOfPlayers, bookedBy: email});
-      // TODO update flag in teeTime "booked"
-      // TODO update and the number of people 
+      await this.afs.collection('tee-times').doc(teeTime.id).update({booked: true, numberOfPlayers, bookedBy: email});
       // TODO send a confirmation email
       resolve();
     });
