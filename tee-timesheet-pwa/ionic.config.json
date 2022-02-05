@@ -1,0 +1,7 @@
+{
+  "name": "tee-timesheet-pwa",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}

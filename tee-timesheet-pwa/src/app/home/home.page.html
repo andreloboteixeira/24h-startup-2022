@@ -1,0 +1,50 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-title>
+      Golf Course Name
+    </ion-title>
+  </ion-toolbar>
+</ion-header>
+    
+<ion-content>
+    <ion-grid>
+      <ion-row>
+        <ion-col size="12" sizeLg="12" sizeMd="12" sizeSm="12">
+          <div>
+            <img src="assets/golf-sample.jpeg" />
+          </div>
+        </ion-col>
+      </ion-row>
+      
+      <ion-row>
+        
+        <ion-col sizeLg="4" sizeMd="12" sizeSm="12">
+          <ion-label>Pick a date</ion-label>
+          <ion-datetime [(ngModel)]="selectedDate" (ionChange)="search($event)" presentation="date"></ion-datetime>
+        </ion-col>
+
+        <ion-col sizeLg="8" sizeMd="12" sizeSm="12">
+          <ion-row>
+        
+            <div *ngFor="let teeTime of teeTimes">
+              <ion-card class="card" >
+                <ion-card-header>
+                  <ion-card-subtitle>{{teeTime.date | date: 'h:mm a'}}</ion-card-subtitle>
+                  <ion-card-title>CAD${{teeTime.price}}</ion-card-title>
+                </ion-card-header>
+            
+                <ion-card-content>
+                  <ion-button (click)="book(teeTime)">Book</ion-button>
+                </ion-card-content>
+              </ion-card>
+            </div>
+    
+          </ion-row>
+        </ion-col>
+
+      </ion-row>
+        
+    </ion-grid>
+      
+</ion-content>
+          
