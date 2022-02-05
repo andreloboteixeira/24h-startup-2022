@@ -19,7 +19,7 @@ export class TeeTimesheetService {
   teeTimes: Array<TeeTime>;
 
   mockTeeTimes: Array<TeeTime> = this.createMock();
-  
+
   constructor(
     private afs: AngularFirestore
   ) { }
@@ -36,12 +36,22 @@ export class TeeTimesheetService {
     return teeTimes$;
   }
 
-  book(teeTime: TeeTime, numberOfPlayers: number) {
-    // TODO use angular fire
-    // TODO update flag in teeTime "booked"
-    // TODO update and the number of people 
-    // TODO send a confirmation email
-    return ;
+  book(teeTime: TeeTime, numberOfPlayers: number, email: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      console.log({teeTime, numberOfPlayers, email})
+      if (!numberOfPlayers || numberOfPlayers > 10) {
+        reject("Invalid number of players, no more than 10");
+      }
+      
+      if (!email || email.trim().length < 1) {
+        reject("Invalid email");
+      }
+      // TODO use angular fire
+      // TODO update flag in teeTime "booked"
+      // TODO update and the number of people 
+      // TODO send a confirmation email
+      resolve();
+    });
   }
 
   teeTimeConversion(teeTimes: Array<any>) {

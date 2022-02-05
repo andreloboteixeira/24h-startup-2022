@@ -25,14 +25,15 @@
           <ion-datetime [(ngModel)]="selectedDate" (ionChange)="search($event)" presentation="date"></ion-datetime>
         </ion-col>
 
-        <ion-col sizeLg="8" sizeMd="12" sizeSm="12">
+        <ion-spinner *ngIf="isSearching && selectedDate" name="crescent"></ion-spinner>
+        <ion-col *ngIf="!isSearching && selectedDate" sizeLg="8" sizeMd="12" sizeSm="12">
           <ion-row>
         
             <div *ngFor="let teeTime of teeTimes">
               <ion-card class="card" >
                 <ion-card-header>
                   <ion-card-subtitle>{{teeTime.date | date: 'h:mm a'}}</ion-card-subtitle>
-                  <ion-card-title>CAD${{teeTime.price}}</ion-card-title>
+                  <ion-card-title>CAD$ {{teeTime.price}}</ion-card-title>
                 </ion-card-header>
             
                 <ion-card-content>
