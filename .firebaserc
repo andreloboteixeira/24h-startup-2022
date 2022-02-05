@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "h-startup-app",
+    "staging": "h-startup-app"
+  },
+  "targets": {}
+}
