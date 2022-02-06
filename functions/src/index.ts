@@ -1,9 +1,8 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { firestore } from "firebase-admin";
+const axios = require('axios');
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyCtpaskR40XPJatSBwaqBiCXUhTf6J_Iio",
   authDomain: "h-startup-app.firebaseapp.com",
@@ -13,113 +12,164 @@ const firebaseConfig = {
   appId: "1:1053759972372:web:a54b7ac403e3be9e8f3301",
   measurementId: "G-G622FVDMB8",
 };
-// The Firebase Admin SDK to access Firestore.
-
 const app = admin.initializeApp(firebaseConfig);
+const firestoreDb = app.firestore();
+const dbCollections = { weatherData: 'weather-data', teeTimes: 'tee-times'};
 
-export const scheduledPriceComputations = functions.pubsub.schedule('every 5 minutes').onRun((context) => {
-  console.log('This will be run every 5 minutes and should compute the prices for the day (maybe for future dates too?)!');
-  return null;
+interface TeeTime {
+  id: string,
+  price: number,
+  date: Date,
+  timeSlot: number,
+  numberOfPlayers: number,
+  booked: boolean,
+  bookedBy: string,
+	isGoodWeather: boolean,
+	maxWeatherAdjustedPrice: number,
+	teeTimesInventory: number;
+	previousPrice: number;
+}
+
+export const scheduledPriceComputations = functions.pubsub.schedule('every 1 minutes').onRun( async (context) => {
+
+	console.info('This will be run every 5 minutes and should update the prices for the day !');
+	try {
+		const openWeatherAPIKey = functions.config().openweather.key
+		const rreginaGolfClubLocation = {lat: 50, long: -104};
+		
+		const res = await axios.get(`https://api.openweathermap.org/data/2.5/weather?lat=${rreginaGolfClubLocation.lat}&lon=${rreginaGolfClubLocation.long}&appid=${openWeatherAPIKey}`);
+		const weatherData = res.data;
+
+		const isGoodWeather = checkIfItIsGoodWeather(weatherData);// store weather data
+		await firestoreDb.collection(dbCollections.weatherData).add({data: weatherData, isGoodWeather, location: rreginaGolfClubLocation, createdAt: getServerTimestamp()});
+
+
+		// const today = getServerTimestamp();
+		const todaysTeeTimesDocs = await firestoreDb.collection(dbCollections.teeTimes).get(); // TODO fetch teeTimes for today
+
+		const todaysTeeTimes = teeTimeConversion(todaysTeeTimesDocs.docs.map(doc => doc.data()));
+		const maxPrice = 90; // dollars, cents is in the database
+		const minPrice = 10;
+
+		const updatedTodaysTeeTimesWeather = todaysTeeTimes.map(teeTime => {
+			return {...teeTime, isGoodWeather};
+		});
+
+		const updatedTodaysTeeTimesWeatherAdjustedPrice = updatedTodaysTeeTimesWeather.map(teeTime => {
+			return {...teeTime, maxWeatherAdjustedPrice: computeMaxWeatherAdjustedPrice(teeTime, maxPrice)};
+		});
+
+		const updatedTodaysTeeTimesInventory = updatedTodaysTeeTimesWeatherAdjustedPrice.map(teeTime => {
+			return {...teeTime, teeTimesInventory: computeTeeTimeInventory(updatedTodaysTeeTimesWeatherAdjustedPrice, teeTime)};
+		});
+
+		
+		const updatedTodaysTeeTimesPrices = updatedTodaysTeeTimesInventory.map(teeTime => {
+			return {...teeTime, previousPrice: teeTime.price * 100, price: teeTime.booked ? teeTime.price * 100 : computePriceToDisplay(minPrice, teeTime)};
+		});
+		
+		updatedTodaysTeeTimesPrices.forEach(async (ttToUpdate) => {
+			await firestoreDb.collection(dbCollections.teeTimes).doc(ttToUpdate.id).set(ttToUpdate, {merge: true});
+		})
+
+		return null;
+	} catch(schedulerError) {
+		console.error(schedulerError);
+		return schedulerError;
+	}
 });
 
+function computeMaxWeatherAdjustedPrice(teeTime: TeeTime, max: number) {
+	if (teeTime.isGoodWeather) {
+		return max * 1.4;
+	} else {
+		return max * 0.6;
+	}
+}
+
+function computeTeeTimeInventory(teeTimes: Array<TeeTime>, currTeeTime: TeeTime, window?: {initIdx: number, endIdx: number}) {
+	let windowToAnalyze = 3 // TODO: starting with 3 hours for periods of 10min, have to first change the database with 10 min timeslots
+
+	const teeTimeToCompute = teeTimes.find(tt => tt.id == currTeeTime.id);
+	if (!teeTimeToCompute) {
+		throw Error("teeTimeNotFound")
+	}
+	const idx = teeTimes.indexOf(teeTimeToCompute);
+	
+	if (idx + windowToAnalyze < teeTimes.length) {
+		const toAnalize = teeTimes.splice(idx, windowToAnalyze);
+
+		let total = 0;
+		toAnalize.forEach(tttime => {
+			if (tttime.booked) {
+				total += 1;
+			}
+		})
+
+		return total/windowToAnalyze;
+
+	} else { // dealing with cases where window would exceed array limit
+		const remainingWindow = teeTimes.length - idx;
+		const toAnalize = teeTimes.splice(idx, remainingWindow);
+
+		let total = 0;
+		toAnalize.forEach(tttime => {
+			if (tttime.booked) {
+				total += 1;
+			}
+		})
+
+		return total/remainingWindow;
+	}
+
+}
+
+function computePriceToDisplay(min: number, teeTime: TeeTime) {
+	return (min + (teeTime.maxWeatherAdjustedPrice * teeTime.teeTimesInventory))*100;
+}
+
+function checkIfItIsGoodWeather(weatherData: any) {
+	const minTemp = 283.15; // K , 10 C
+	const maxTemp = 303.15; // K, 30 C
+	const maxWind = 13.4112; // m/s
+	let isGood = false;
+	
+	// temperature
+	if (weatherData.main.temp < minTemp  || weatherData.main.temp > maxTemp) {
+		isGood = false
+	} else {
+		// wind
+		if (weatherData.wind.speed > maxWind) {
+			isGood = false
+		} else {
+			isGood = true
+		}
+	}
+
+	return isGood;
+}
+
+function teeTimeConversion(teeTimes: Array<any>) {
+  
+	const dateConverted = teeTimes.map((tt: any) => {
+		return { 
+			id: tt.id,
+			date: tt.date.toDate(),
+			price: tt.price/100,
+			timeSlot: tt.timeSlot,
+			numberOfPlayers: tt.numberOfPlayers,
+			booked: tt.booked,
+			bookedBy: tt.bookedBy
+		}
+	}) as Array<TeeTime>;
+
+	const sortedByTimeSlot = dateConverted.sort((firstTT, secondTT) => {
+		return firstTT.timeSlot - secondTT.timeSlot;
+	});
+
+	return sortedByTimeSlot;
+}
 
 function getServerTimestamp() {
   return firestore.FieldValue.serverTimestamp();
 }
-
-//
-export const helloWorld = functions.https.onRequest( async (request, response) => {
-  try {
-
-    const requestParams = request.params;
-    const params = { email: request.params.email, name: request.params.name }
-
-    functions.logger.log(`Params ${JSON.stringify(params)}`);
-    const newUser = await admin.auth().createUser({
-      email: params.email,
-      emailVerified: false,
-      displayName: params.name,
-      photoURL: "http://www.example.com/12345678/photo.png",
-      disabled: false
-    });
-
-    functions.logger.log(`newUser ${JSON.stringify(newUser)}`);
-
-    const newProfile = {
-      userId: newUser.uid,
-      name: request.params.name ? request.params.name : 'NoName',
-      email: request.params.email,
-      createdAt: getServerTimestamp(), 
-      updatedAt: getServerTimestamp(), 
-    };
-
-    functions.logger.log(`newProfile ${JSON.stringify(newProfile)}`);
-
-    app.firestore().collection('profiles').add(newProfile);
-
-
-    // functions.logger.info(`Hello ${requestParams.name}`, {structuredData: true});
-    response.json({
-      message: `Hello, ${requestParams.name} (IP:${request.ip})`,
-      newProfile,
-      newUser,
-      paramsEcho: params
-    });
-
-
-  } catch(error) {
-    functions.logger.error(`Error ${JSON.stringify(error)}`);
-  }
-
-});
-
-// [START helloWorld]
-/**
- * Cloud Function to be triggered by Pub/Sub that logs a message using the data published to the
- * topic.
- */
-// [START trigger]
-// export const helloPubSub = functions.pubsub.topic('topic-name').onPublish((message) => {
-//     // [END trigger]
-//       // [START readBase64]
-//       // Decode the PubSub Message body.
-//       const messageBody = message.data ? Buffer.from(message.data, 'base64').toString() : null;
-//       // [END readBase64]
-//       // Print the message in the logs.
-//       functions.logger.log(`Hello ${messageBody || 'World'}!`);
-//       return null;
-//     });
-    // [END helloWorld]
-    
-    // /**
-    //  * Cloud Function to be triggered by Pub/Sub that logs a message using the data published to the
-    //  * topic as JSON.
-    //  */
-    // exports.helloPubSubJson = functions.pubsub.topic('another-topic-name').onPublish((message) => {
-    //   // [START readJson]
-    //   // Get the `name` attribute of the PubSub message JSON body.
-    //   let name = null;
-    //   try {
-    //     name = message.json.name;
-    //   } catch (e) {
-    //     functions.logger.error('PubSub message was not JSON', e);
-    //   }
-    //   // [END readJson]
-    //   // Print the message in the logs.
-    //   functions.logger.log(`Hello ${name || 'World'}!`);
-    //   return null;
-    // });
-    
-    // /**
-    //  * Cloud Function to be triggered by Pub/Sub that logs a message using the data attributes
-    //  * published to the topic.
-    //  */
-    // exports.helloPubSubAttributes = functions.pubsub.topic('yet-another-topic-name').onPublish((message) => {
-    //   // [START readAttributes]
-    //   // Get the `name` attribute of the message.
-    //   const name = message.attributes.name;
-    //   // [END readAttributes]
-    //   // Print the message in the logs.
-    //   functions.logger.log(`Hello ${name || 'World'}!`);
-    //   return null;
-    // });

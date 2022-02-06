@@ -34,18 +34,13 @@ export class HomePage implements OnInit, OnDestroy {
   }
 
   search(event) {
-    console.info(`Event: ${JSON.stringify(event)}, selectedate: ${this.selectedDate}`);
     this.isSearching = true;
     this.loadingSubscription = this.teeTimesheetService.fetchTeeTimesForDate(this.selectedDate).subscribe(teeTimes => {
       this.teeTimes = teeTimes;
       setTimeout(() => {
         this.isSearching = false;
       }, 1000);
-      
-      console.log("this.loadingSubscription")
-      console.log(this.loadingSubscription)
     });
-
 
     console.info(">>> this.teeTimes")
     console.info(this.teeTimes)
@@ -57,6 +52,7 @@ export class HomePage implements OnInit, OnDestroy {
     await alert.present(); 
   }
 
+  // todo too many overlays are probably causing the bug where the booking is confirmed even when there are validation errors
   async createAlertPrompt(selectedTeeTime) {
     const alert = this.alertController.create({
       cssClass: 'my-custom-class',
@@ -90,12 +86,12 @@ export class HomePage implements OnInit, OnDestroy {
             // TODO subscription with loading, then send a toast message
             this.teeTimesheetService.book(selectedTeeTime, +data.nOfPlayers, data.email)
               .then( async () => {
-                const alert = await this.createConfirmAlert('Success', `Check ${data.email} for your booking information`);
-                await alert.present();
+                const confirmAlert = await this.createConfirmAlert('Success', `Check ${data.email} for your booking information`);
+                await confirmAlert.present();
               })
               .catch( async (error) => {
-                const alert = await this.createConfirmAlert('Error!', `${error}`);
-                await alert.present();
+                const errorAlert = await this.createConfirmAlert('Error!', `${error}`);
+                await errorAlert.present();
               }); 
           }
         }
