@@ -16,7 +16,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "deploy-pwa": "cd tee-timesheet-pwa && ng build && cd .. && firebase deploy --only hosting",
-    "deploy-functions": "firebase deploy --only hosting"
+    "deploy-functions": "firebase deploy --only functions"
   },
   "author": "",
   "license": "ISC"
